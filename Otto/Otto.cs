@@ -2,6 +2,7 @@
 using OpenQA.Selenium.Chrome;
 
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -145,37 +146,21 @@ namespace Otto
         private List<XElement> ParseElements(IEnumerable<XElement> elements, ElementTypes type)
         {
             List<XElement> updatedElements = new List<XElement>();
-            List<MatchCount> matchList = new List<MatchCount>();
+            Hashtable knownItems = new Hashtable();
             foreach (XElement element in elements)
             {
                 XElement newElement = ParseJQuery(element);
                 if (newElement != null)
                 {
                     newElement.SetAttributeValue("type", type);
-                    //check to see if we've encountered this element before so we can increment the name
-                    foreach (XElement updatedElement in updatedElements)
+                    //check to see if we've encountered this element before so we can modify the name
+                    Guid randomID = Guid.NewGuid();
+                    if (knownItems.ContainsValue(newElement.Name.LocalName))
                     {
-                        if (updatedElement.Name.LocalName.Equals(newElement.Name.LocalName, StringComparison.OrdinalIgnoreCase))
-                        {
-                            //go through the 'matched' list to update the counter accordingly
-                            bool isFound = false;
-                            foreach (MatchCount match in matchList)
-                            {
-                                if (match.Name.Equals(newElement.Name.LocalName, StringComparison.OrdinalIgnoreCase))
-                                {
-                                    match.Count++;
-                                    newElement.Name = newElement.Name.LocalName + "_gen" + match.Count;
-                                    isFound = true;
-                                    break;
-                                }
-                                if (!isFound)
-                                {
-                                    matchList.Add(new MatchCount(newElement.Name.LocalName, 2));
-                                    newElement.Name = newElement.Name.LocalName + "_gen2";
-                                }
-                            }
-                        }
+                        newElement.Name = newElement.Name.LocalName + "_DUPLICATE_" + randomID.ToString().Replace("-", "_");
                     }
+                    knownItems.Add(randomID, newElement.Name.LocalName);
+                    
                     updatedElements.Add(newElement);
                 }
                 else
@@ -414,18 +399,6 @@ namespace Otto
             string folderName = String.Format("..\\..\\classes\\{0}_{1}\\", filename, timestamp.ToString("yyyyMMdd_HHmmss"));
             Directory.CreateDirectory(folderName);
             return folderName;
-        }
-    }
-
-    public class MatchCount
-    {
-        public string Name { get; set; }
-        public int Count { get; set; }
-
-        public MatchCount(string name, int count)
-        {
-            this.Name = name;
-            this.Count = count;
         }
     }
 }
