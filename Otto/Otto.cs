@@ -1,12 +1,17 @@
-﻿using System;
+﻿using OpenQA.Selenium;
+using OpenQA.Selenium.Chrome;
+
+using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Text;
 using System.Web;
 using System.Xml;
 using System.Xml.Linq;
-using OpenQA.Selenium;
-using OpenQA.Selenium.Chrome;
+
+using Otto;
+using Otto.ClassBuilder;
 
 namespace Otto
 {
@@ -15,11 +20,17 @@ namespace Otto
         private IWebDriver _driver;
         private XDocument _xDoc;
 
-        enum ElementTypes
+        public enum ElementTypes
         {
             Click,
             Type,
             Select
+        }
+
+        public enum ClassLanguage
+        {
+            CSharp,
+            VB
         }
 
         /// <summary>
@@ -32,7 +43,7 @@ namespace Otto
         /// <summary>
         /// Creates a new chromedriver browser instance and navigates to the supplied url
         /// </summary>
-        /// <param name="url"></param>
+        /// <param name="url">The initial url to navigate to</param>
         public void Initialize(string url)
         {
             _driver = new ChromeDriver();
@@ -43,7 +54,9 @@ namespace Otto
         /// Does the heavy lifting and goes through the entire keyword class generation process 
         /// from web-site to file creation
         /// </summary>
-        public void Generate()
+        /// <param name="className">The className to use for the generated file</param>
+        /// <param name="language">The language type to generate the class as</param>
+        public void Generate(string className, ClassLanguage language)
         {
             //ensure the driver has been created
             if (_driver == null)
@@ -53,13 +66,27 @@ namespace Otto
 
             //inject the htmlasxml script and fetch the returned xml-compatible string
             IJavaScriptExecutor js = (IJavaScriptExecutor)_driver;
-            js.ExecuteScript("load htmltoxml from github");
+            js.ExecuteScript(Properties.Resources.HtmlToXml);
             //give the script a second to load
             System.Threading.Thread.Sleep(1000);
             _xDoc = XDocument.Parse((string)js.ExecuteScript("return HtmlAsXml.toXmlString();"));
 
             //return a filtered list of elements to process with their respective type
             Dictionary<IEnumerable<XElement>, ElementTypes> filteredElements = FilterUsableElements();
+
+            //parse the elements into usable info
+            XDocument finalXDoc = new XDocument();
+            finalXDoc.AddFirst(new XElement("root"));
+            finalXDoc.Root.SetAttributeValue("class", className);
+            //finalXDoc.Root.SetAttributeValue("template", "NOT YET IMPLEMENTED");
+            finalXDoc.Root.SetAttributeValue("template", "");
+            foreach (KeyValuePair<IEnumerable<XElement>, ElementTypes> entry in filteredElements)
+            {
+                finalXDoc.Root.Add(ParseElements(entry.Key, entry.Value).ToArray());
+            }
+            
+            //create the class file
+            CreateClass(finalXDoc, language);
         }
 
         /// <summary>
@@ -195,10 +222,12 @@ namespace Otto
                 // try the value, name, id, class, and finally leave it generic
                 if (!string.IsNullOrEmpty(value))
                     field = value;
-                else if (!string.IsNullOrEmpty(name))
-                    field = name;
+                else if (!string.IsNullOrEmpty(title))
+                    field = title;
                 else if (!string.IsNullOrEmpty(id))
                     field = id;
+                else if (!string.IsNullOrEmpty(name))
+                    field = name;
                 else if (!string.IsNullOrEmpty(classValue))
                     field = classValue;
                 else
@@ -206,10 +235,98 @@ namespace Otto
             }
             field = field.Replace(" ", "");
 
+            //create the selector
+            string selector = BuildGenericJQuerySelector(tag: tag, 
+                id: id, 
+                type: type, 
+                textValue: text, 
+                title: title, 
+                classValue: classValue, 
+                style: style);
+            jQuery = "$(\"" + selector + "\")";
 
-
+            int recordCount = JquerySize(jQuery);
+            if (recordCount == 1)
+            {
+                try
+                {
+                    updatedElement = new XElement(field.Replace("-", "_").Replace(".", "_"));
+                }
+                catch (Exception e)
+                {
+                    updatedElement = new XElement(tag);
+                }
+                updatedElement.SetAttributeValue("jQuery", jQuery);
+            }
+            else if (recordCount > 1)
+            {
+                //supplied jquery was not unique enough
+                //recurse up the parent chain from the element in question and make a more complex lookup statement
+            }
+            else
+            {
+                //supplied jquery was either too specific or not unique enough
+                //try to recurse in both directions to find a lookup that works
+            }
 
             return updatedElement;
+        }
+
+        /// <summary>
+        /// Parses the final XDocument down into a usable class for automation
+        /// </summary>
+        /// <param name="xDoc">The XDocument containing all of the prepped data for generation</param>
+        /// <param name="lang">The .NET class to output the class as</param>
+        private void CreateClass(XDocument xDoc, ClassLanguage lang)
+        {
+            //determine the filename for the new class file
+            string filename = xDoc.Root.Attribute("class").Value;
+            //determine where to save the class after creation
+            string folderName = CreateFolder(filename);
+            //determine which helper class to use with generation
+            IClassBuilder classHelper;
+            string extension = string.Empty;
+            switch (lang)
+            {
+                case ClassLanguage.VB:
+                    classHelper = new VBClassBuilder();
+                    extension = ".vb";
+                    break;
+                case ClassLanguage.CSharp:
+                    classHelper = new VBClassBuilder();
+                    extension = ".cs";
+                    break;
+                default:
+                    classHelper = null;
+                    extension = null;
+                    break;
+            }
+            //generate the header
+            StringBuilder classBuilder = new StringBuilder(classHelper.GenerateHeader(filename, xDoc.Root.Attribute("template").Value));
+
+            //iterate through all the elements and generate their class accessors
+            foreach (XElement element in xDoc.Root.Descendants())
+            {
+                ElementTypes type = (ElementTypes)Enum.Parse(typeof(ElementTypes), (TryGetElementAttribute(element, "type")));
+                switch (type)
+                {
+                    case ElementTypes.Click:
+                        classBuilder.AppendLine(classHelper.GenerateClick(TryGetElementAttribute(element, "jQuery"), element.Name.LocalName));
+                        break;
+                    case ElementTypes.Select:
+                        classBuilder.AppendLine(classHelper.GenerateSelect(TryGetElementAttribute(element, "jQuery"), element.Name.LocalName));
+                        break;
+                    case ElementTypes.Type:
+                        classBuilder.AppendLine(classHelper.GenerateType(TryGetElementAttribute(element, "jQuery"), element.Name.LocalName));
+                        break;
+                }
+            }
+
+            //generate the footer
+            classBuilder.AppendLine(classHelper.GenerateFooter());
+
+            //output the class file
+            File.WriteAllText(String.Concat(folderName, filename, extension), classBuilder.ToString());
         }
 
         /// <summary>
@@ -264,6 +381,39 @@ namespace Otto
             {
                 return string.Empty;
             }
+        }
+
+        /// <summary>
+        /// Returns how many unique elements were found from the jquery statement
+        /// </summary>
+        /// <param name="jquery">The jQuery to execute</param>
+        /// <returns></returns>
+        private int JquerySize(string jquery)
+        {
+            try
+            {
+                IJavaScriptExecutor js = (IJavaScriptExecutor)_driver;
+                Object size = js.ExecuteScript("return " + jquery + ".size();");
+                return int.Parse(size.ToString());
+            }
+            catch (Exception e)
+            {
+                return 0;
+            }
+        }
+
+        /// <summary>
+        /// Used to create a new folder based off the filename with a timestamp.
+        /// Note: Timestamp is appended to retain a historical record of previously created classes
+        /// </summary>
+        /// <param name="filename">The filename to create the folder name off of</param>
+        /// <returns></returns>
+        private string CreateFolder(string filename)
+        {
+            DateTime timestamp = DateTime.Now;
+            string folderName = String.Format("..\\..\\classes\\{0}_{1}\\", filename, timestamp.ToString("yyyyMMdd_HHmmss"));
+            Directory.CreateDirectory(folderName);
+            return folderName;
         }
     }
 

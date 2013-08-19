@@ -89,6 +89,7 @@
             this.btn_Generate.TabIndex = 5;
             this.btn_Generate.Text = "Generate";
             this.btn_Generate.UseVisualStyleBackColor = true;
+            this.btn_Generate.Click += new System.EventHandler(this.btn_Generate_Click);
             // 
             // tbx_Output
             // 
