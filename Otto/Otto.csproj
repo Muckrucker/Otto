@@ -45,6 +45,7 @@
     </Reference>
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="ClassBuilder\CSClassBuilder.cs" />
     <Compile Include="ClassBuilder\IClassBuilder.cs" />
     <Compile Include="ClassBuilder\VBClassBuilder.cs" />
     <Compile Include="Otto.cs" />

@@ -7,6 +7,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Web;
 using System.Xml;
 using System.Xml.Linq;
@@ -30,8 +31,8 @@ namespace Otto
 
         public enum ClassLanguage
         {
-            CSharp,
-            VB
+            CSharp = 0,
+            VB = 1
         }
 
         /// <summary>
@@ -211,14 +212,13 @@ namespace Otto
                     field = title;
                 else if (!string.IsNullOrEmpty(id))
                     field = id;
-                else if (!string.IsNullOrEmpty(name))
-                    field = name;
                 else if (!string.IsNullOrEmpty(classValue))
                     field = classValue;
+                else if (!string.IsNullOrEmpty(name))
+                    field = name;
                 else
                     field = tag;
             }
-            field = field.Replace(" ", "");
 
             //create the selector
             string selector = BuildGenericJQuerySelector(tag: tag, 
@@ -235,7 +235,7 @@ namespace Otto
             {
                 try
                 {
-                    updatedElement = new XElement(field.Replace("-", "_").Replace(".", "_"));
+                    updatedElement = new XElement(ScrubField(field, tag));
                 }
                 catch (Exception e)
                 {
@@ -278,7 +278,7 @@ namespace Otto
                     extension = ".vb";
                     break;
                 case ClassLanguage.CSharp:
-                    classHelper = new VBClassBuilder();
+                    classHelper = new CSClassBuilder();
                     extension = ".cs";
                     break;
                 default:
@@ -348,6 +348,28 @@ namespace Otto
                 selector.Append(string.Format(":contains('{0}')", textValue));
 
             return selector.ToString();
+        }
+
+        /// <summary>
+        /// Replaces all illegal characters from the field value with _
+        /// </summary>
+        /// <param name="field">The field value to scrub</param>
+        /// <param name="tag">The tag value of the element being scrubbed</param>
+        /// <returns></returns>
+        private string ScrubField(string field, string tag)
+        {
+            //watch for special cases
+            //such as field containing a leading number
+            if (Regex.Match(field, @"^(\d+)").Success)
+            {
+                field = String.Concat(tag, "_", field);
+            }
+
+            //remove other invalid characters
+            field = Path.GetInvalidFileNameChars().Aggregate(field, (current, c) => current.Replace(c.ToString(), "_"));
+            
+            field = field.Replace(" ", "_").Replace("-", "_").Replace("+", "_plus_").Replace("[", "_").Replace("]", "_");
+            return field;
         }
 
         /// <summary>

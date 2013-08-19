@@ -18,6 +18,7 @@ namespace Test_Harness
         {
             InitializeComponent();
             _otto = new Otto.Otto();
+            cbx_Language.DataSource = Enum.GetValues(typeof(Otto.Otto.ClassLanguage));
         }
 
         private void btn_Go_Click(object sender, EventArgs e)
@@ -27,7 +28,12 @@ namespace Test_Harness
 
         private void btn_Generate_Click(object sender, EventArgs e)
         {
-            _otto.Generate(tbx_Classname.Text, Otto.Otto.ClassLanguage.VB);
+            Otto.Otto.ClassLanguage language;
+            if (Enum.TryParse<Otto.Otto.ClassLanguage>(cbx_Language.SelectedValue.ToString(), out language))
+            {
+                _otto.Generate(tbx_Classname.Text, language);
+            }
         }
+
     }
 }

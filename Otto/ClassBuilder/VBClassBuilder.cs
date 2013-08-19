@@ -17,7 +17,6 @@ namespace Otto.ClassBuilder
         public string GenerateHeader(string className, string template)
         {
             StringBuilder generatedString = new StringBuilder();
-            generatedString.AppendLine();
             generatedString.AppendLine(String.Format("Public Class {0}", className));
             generatedString.AppendLine("     Inherits AutoBase");
             generatedString.AppendLine();
@@ -40,7 +39,6 @@ namespace Otto.ClassBuilder
         public string GenerateClick(string jQuery, string name)
         {
             StringBuilder generatedString = new StringBuilder();
-            generatedString.AppendLine();
             generatedString.AppendLine("''' <summary>");
             generatedString.AppendLine(String.Format("''' Clicks on the '{0}' button", name));
             generatedString.AppendLine("''' </summary>");
@@ -50,7 +48,6 @@ namespace Otto.ClassBuilder
             generatedString.AppendLine("     'machine-readable jquery");
             generatedString.AppendLine(String.Format("     AutoBase.Click(\"{0}\")", HttpUtility.HtmlEncode(jQuery)));
             generatedString.AppendLine("End Sub");
-            generatedString.AppendLine();
             return generatedString.ToString();
         }
 
@@ -63,7 +60,6 @@ namespace Otto.ClassBuilder
         public string GenerateType(string jQuery, string name)
         {
             StringBuilder generatedString = new StringBuilder();
-            generatedString.AppendLine();
             generatedString.AppendLine("''' <summary>");
             generatedString.AppendLine(String.Format("''' Sets the text on the '{0}' field", name));
             generatedString.AppendLine("''' <param name=\"value\">The value to set in the field</param>)");
@@ -85,7 +81,6 @@ namespace Otto.ClassBuilder
             generatedString.AppendLine("     'machine-readable jquery");
             generatedString.AppendLine(String.Format("     AutoBase.VerifyField(\"{0}\", value, FieldType.Text)", HttpUtility.HtmlEncode(jQuery)));
             generatedString.AppendLine("End Sub");
-            generatedString.AppendLine();
             return generatedString.ToString();
         }
 
@@ -98,7 +93,6 @@ namespace Otto.ClassBuilder
         public string GenerateSelect(string jQuery, string name)
         {
             StringBuilder generatedString = new StringBuilder();
-            generatedString.AppendLine();
             generatedString.AppendLine("''' <summary>");
             generatedString.AppendLine(String.Format("''' Sets the text on the '{0}' field", name));
             generatedString.AppendLine("''' <param name=\"value\">The value to set in the field</param>)");
@@ -120,7 +114,6 @@ namespace Otto.ClassBuilder
             generatedString.AppendLine("     'machine-readable jquery");
             generatedString.AppendLine(String.Format("     AutoBase.VerifyField(\"{0}\", value, FieldType.Select)", HttpUtility.HtmlEncode(jQuery)));
             generatedString.AppendLine("End Sub");
-            generatedString.AppendLine();
             return generatedString.ToString();
         }
 
@@ -130,7 +123,9 @@ namespace Otto.ClassBuilder
         /// <returns></returns>
         public string GenerateFooter()
         {
-            return "End Class";
+            StringBuilder generatedString = new StringBuilder();
+            generatedString.AppendLine("End Class");
+            return generatedString.ToString();
         }
     }
 }
