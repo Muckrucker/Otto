@@ -86,7 +86,7 @@ namespace Otto
             {
                 finalXDoc.Root.Add(ParseElements(entry.Key, entry.Value).ToArray());
             }
-            
+
             //create the class file
             CreateClass(finalXDoc, language);
         }
@@ -161,7 +161,7 @@ namespace Otto
                         newElement.Name = newElement.Name.LocalName + "_DUPLICATE_" + randomID.ToString().Replace("-", "_");
                     }
                     knownItems.Add(randomID, newElement.Name.LocalName);
-                    
+
                     updatedElements.Add(newElement);
                 }
                 else
@@ -170,6 +170,28 @@ namespace Otto
                 }
             }
             return updatedElements;
+        }
+
+        /// <summary>
+        /// Takes an XElement and parses any applicable attribute values from it
+        /// </summary>
+        /// <param name="element">The XElement to parse</param>
+        /// <returns></returns>
+        private Dictionary<string, string> ParseXElementAttributes(XElement element)
+        {
+            Dictionary<string, string> parsed = new Dictionary<string, string>();
+            foreach (XAttribute attr in element.Attributes())
+            {
+                //remove all troublesome attributes
+                if (!attr.Name.LocalName.Contains("mouse") &&
+                    !attr.Name.LocalName.Contains("trigger") &&
+                    !attr.Name.LocalName.Contains("click") &&
+                    !attr.Name.LocalName.Contains("src"))
+                {
+                    parsed.Add(attr.Name.LocalName, TryGetElementAttribute(element, attr.Name.LocalName));
+                }
+            }
+            return parsed;
         }
 
         /// <summary>
@@ -183,76 +205,61 @@ namespace Otto
             XElement updatedElement = null;
             string tag = element.Name.LocalName;
             string text = string.Empty;
-            string value = TryGetElementAttribute(element, "value");
-            string name = TryGetElementAttribute(element, "name");
-            string id = TryGetElementAttribute(element, "id");
-            string title = TryGetElementAttribute(element, "title");
-            string classValue = TryGetElementAttribute(element, "class");
-            string style = TryGetElementAttribute(element, "style");
-            string type = TryGetElementAttribute(element, "type");
+            Dictionary<string, string> elementAttributes = ParseXElementAttributes(element);
             string jQuery = string.Empty;
             string field = string.Empty;
 
             //take a guess at naming the field
+            //TODO: apply regex to id, name, and other such fields that will vary site by site
+            // to discern the actual usable value for these fields
+
             if (element.Element("innerText") != null)
             {
                 text = element.Element("innerText").Value;
                 field = text;
             }
-            else
+            else if (element.Descendants("innerText").Count() > 0)
             {
-                //apply regex to id, name, and other such fields that will vary site by site
-                // to discern the actual usable value for these fields
-
-                //we have no text to go on to name the field
-                // try the value, name, id, class, and finally leave it generic
-                if (!string.IsNullOrEmpty(value))
-                    field = value;
-                else if (!string.IsNullOrEmpty(title))
-                    field = title;
-                else if (!string.IsNullOrEmpty(id))
-                    field = id;
-                else if (!string.IsNullOrEmpty(classValue))
-                    field = classValue;
-                else if (!string.IsNullOrEmpty(name))
-                    field = name;
-                else
-                    field = tag;
-            }
+                text = element.Descendants("innerText").First().Value;
+                field = text;
+            } // try the value, name, id, class, and finally leave it generic, should be a rarity
+            else if (elementAttributes.ContainsKey("value"))
+                field = elementAttributes["value"];
+            else if (elementAttributes.ContainsKey("title"))
+                field = elementAttributes["title"];
+            else if (elementAttributes.ContainsKey("id"))
+                field = elementAttributes["id"];
+            else if (elementAttributes.ContainsKey("classValue"))
+                field = elementAttributes["classValue"];
+            else if (elementAttributes.ContainsKey("name"))
+                field = elementAttributes["name"];
+            else
+                field = tag;
 
             //create the selector
-            string selector = BuildGenericJQuerySelector(tag: tag, 
-                id: id, 
-                type: type, 
-                textValue: text, 
-                title: title, 
-                classValue: classValue, 
-                style: style);
-            jQuery = "$(\"" + selector + "\")";
+            string selector = BuildGenericJQuerySelector(tag: tag,
+                attributes: elementAttributes,
+                textValue: text);
 
-            int recordCount = JquerySize(jQuery);
-            if (recordCount == 1)
+            //create the updated element proper
+            try
             {
-                try
+                if (GetJquerySize(WrapJquery(selector)) >= 1)
                 {
                     updatedElement = new XElement(ScrubField(field, tag));
                 }
-                catch (Exception e)
+                else //we've discovered a broken jquery selector
                 {
-                    updatedElement = new XElement(tag);
+                    updatedElement = new XElement(ScrubField(string.Concat("0_JQUERY_MATCHES_", field), tag));
                 }
-                updatedElement.SetAttributeValue("jQuery", jQuery);
             }
-            else if (recordCount > 1)
+            catch (Exception e)
             {
-                //supplied jquery was not unique enough
-                //recurse up the parent chain from the element in question and make a more complex lookup statement
+                //these cases should become exceedingly rare as the project evolves
+                updatedElement = new XElement(tag);
             }
-            else
-            {
-                //supplied jquery was either too specific or not unique enough
-                //try to recurse in both directions to find a lookup that works
-            }
+
+            updatedElement.SetAttributeValue("jQuery", WrapJquery(selector));
 
             return updatedElement;
         }
@@ -325,27 +332,18 @@ namespace Otto
         /// <param name="classValue">The class attribute of the element</param>
         /// <param name="style">The style attribute of the element</param>
         /// <returns></returns>
-        private string BuildGenericJQuerySelector(string tag, 
-            string id = "",
-            string type = "",
-            string textValue = "",
-            string title = "",
-            string classValue = "",
-            string style = "")
+        private string BuildGenericJQuerySelector(string tag,
+            Dictionary<string, string> attributes,
+            string textValue = "")
         {
             StringBuilder selector = new StringBuilder(tag);
-            if (!string.IsNullOrEmpty(id))
-                selector.Append(string.Format("[id*='{0}']", id));
-            if (!string.IsNullOrEmpty(type))
-                selector.Append(string.Format("[type='{0}']", type));
-            if (!string.IsNullOrEmpty(title))
-                selector.Append(string.Format("[title='{0}']", title));
-            if (!string.IsNullOrEmpty(classValue))
-                selector.Append(string.Format("[class*='{0}']", classValue));
-            if (!string.IsNullOrEmpty(style))
-                selector.Append(string.Format("[style*='{0}']", style));
+            for (int i = 0; i < attributes.Keys.Count; i++)
+            {
+                string key = attributes.Keys.ElementAt(i);
+                selector.Append(string.Format("[{0}='{1}']", key, attributes[key]));
+            }
             if (!string.IsNullOrEmpty(textValue))
-                selector.Append(string.Format(":contains('{0}')", textValue));
+                selector.Append(string.Format(":contains('{0}')", textValue.Trim()));
 
             return selector.ToString();
         }
@@ -359,6 +357,9 @@ namespace Otto
         private string ScrubField(string field, string tag)
         {
             //watch for special cases
+            //remove any random html encoding we might have encountered, ie &nbsp
+            field = HttpUtility.HtmlDecode(field);
+
             //such as field containing a leading number
             if (Regex.Match(field, @"^(\d+)").Success)
             {
@@ -366,9 +367,9 @@ namespace Otto
             }
 
             //remove other invalid characters
-            field = Path.GetInvalidFileNameChars().Aggregate(field, (current, c) => current.Replace(c.ToString(), "_"));
-            
-            field = field.Replace(" ", "_").Replace("-", "_").Replace("+", "_plus_").Replace("[", "_").Replace("]", "_");
+            //great non-regex answer here
+            //http://stackoverflow.com/questions/13343885/how-to-replace-a-character-in-string-using-linq
+            field = new string(field.Select(c => (!char.IsLetterOrDigit(c) || char.IsWhiteSpace(c) || c == '-') ? char.Parse("_") : c).ToArray());
             return field;
         }
 
@@ -395,7 +396,7 @@ namespace Otto
         /// </summary>
         /// <param name="jquery">The jQuery to execute</param>
         /// <returns></returns>
-        private int JquerySize(string jquery)
+        private int GetJquerySize(string jquery)
         {
             try
             {
@@ -407,6 +408,55 @@ namespace Otto
             {
                 return 0;
             }
+        }
+
+        /// <summary>
+        /// Returns the parent of the jQuery selector cleaned of childnodes
+        /// </summary>
+        /// <param name="jquery">The jQuery selector to look up the parent for</param>
+        /// <returns></returns>
+        private XElement GetJqueryParent(string jquery)
+        {
+            try
+            {
+                IJavaScriptExecutor js = (IJavaScriptExecutor)_driver;
+                Object elem = js.ExecuteScript("return " + WrapJquery(jquery) + ".parent().clone().empty();");
+                return XElement.Parse((string)(elem.ToString()));
+            }
+            catch (Exception e)
+            {
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// Returns the first child of the jQuery selector cleaned of childnodes
+        /// </summary>
+        /// <param name="jquery">The jQuery selector to look up the first child for</param>
+        /// <returns></returns>
+        private XElement GetJqueryChild(string jquery)
+        {
+            try
+            {
+                IJavaScriptExecutor js = (IJavaScriptExecutor)_driver;
+                //$(jquery).children()[0]).clone().empty()
+                Object elem = js.ExecuteScript("return $(" + WrapJquery(jquery) + ".children()[0]).clone().empty();");
+                return XElement.Parse((string)(elem.ToString()));
+            }
+            catch (Exception e)
+            {
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// Takes that jquery and wraps it up real nice to make it selector-compatible
+        /// </summary>
+        /// <param name="jquery">The jquery selector to wrap</param>
+        /// <returns></returns>
+        private string WrapJquery(string jquery)
+        {
+            return "$(\"" + jquery + "\")";
         }
 
         /// <summary>

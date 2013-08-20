@@ -19,13 +19,13 @@ jQueryScript.setAttribute("src", "http://code.jquery.com/jquery-1.10.2.min.js");
 
 (function (DOMParser) {
     "use strict";
-    var DOMParser_proto = DOMParser.prototype
-      , real_parseFromString = DOMParser_proto.parseFromString;
+    var DOMParser_proto = DOMParser.prototype,
+        real_parseFromString = DOMParser_proto.parseFromString;
 
     // Firefox/Opera/IE throw errors on unsupported types  
     try {
         // WebKit returns null on unsupported types  
-        if ((new DOMParser).parseFromString("", "text/html")) {
+        if ((new DOMParser()).parseFromString("", "text/html")) {
             // text/html parsing is natively supported  
             return;
         }
@@ -37,8 +37,7 @@ jQueryScript.setAttribute("src", "http://code.jquery.com/jquery-1.10.2.min.js");
 
             if (markup.toLowerCase().indexOf('<!doctype') > -1) {
                 doc.documentElement.innerHTML = markup;
-            }
-            else {
+            } else {
                 doc.body.innerHTML = markup;
             }
             return doc;
@@ -204,35 +203,7 @@ HtmlAsXml = function () {
             return returnString;
         }
     };
-
-    //iterates through the parent level nodes and fixes their tags
-    var _fixFormatting = function (type) {
-        //boil down the html a bit
-        _myHtml = _getHtml();
-
-        //attempt to parse as xml, this is pretty much a pipedream but it couldn't hurt to try!
-        var parser = new DOMParser();
-        var xmlDoc = parser.parseFromString(_myHtml, "text/xml");
-        var htmlDoc = null;
-
-        //look for potential errors
-        var parserError = xmlDoc.getElementsByTagName('parsererror')[0];
-        if (parserError) {
-            //grab the current html string and parse it as an html document to preserve querying mechanisms
-            body = new DOMParser().parseFromString(_myHtml, "text/html");
-            //attempt to recurse the html string into a valid xml-format string
-            htmlDoc = _recurseElementFix(body.childNodes[1]);
-        }
-
-        if (type === 'doc') {
-            //return the finished html doc as an xml doc
-            return new DOMParser().parseFromString(htmlDoc, "text/xml");
-        } else if (type === 'string') {
-            //return the finished html doc as an xml doc compatible string
-            return htmlDoc;
-        }
-    };
-
+    
     //simple string contains method, avoiding adding this to the String.prototype in case of fires
     var _stringContains = function (str, contains) {
         return str.indexOf(contains) !== -1;
@@ -260,6 +231,34 @@ HtmlAsXml = function () {
             //strip out all newline, returns, and/or tabs and encode the value in case of illegal chars
             //return "<innerText>" + _htmlEncode(text.trim().replace(/[\n\r\t]/g, '')) + "</innerText>";
             return (text.length > 0 ? "<innerText>" + _htmlEncode(text.replace(/[\n\r\t]/g, '')) + "</innerText>" : "");
+        }
+    };
+
+    //iterates through the parent level nodes and fixes their tags
+    var _fixFormatting = function (type) {
+        //boil down the html a bit
+        _myHtml = _getHtml();
+
+        //attempt to parse as xml, this is pretty much a pipedream but it couldn't hurt to try!
+        var parser = new DOMParser();
+        var xmlDoc = parser.parseFromString(_myHtml, "text/xml");
+        var htmlDoc = null;
+
+        //look for potential errors
+        var parserError = xmlDoc.getElementsByTagName('parsererror')[0];
+        if (parserError) {
+            //grab the current html string and parse it as an html document to preserve querying mechanisms
+            body = new DOMParser().parseFromString(_myHtml, "text/html");
+            //attempt to recurse the html string into a valid xml-format string
+            htmlDoc = _recurseElementFix(body.childNodes[1]);
+        }
+
+        if (type === 'doc') {
+            //return the finished html doc as an xml doc
+            return new DOMParser().parseFromString(htmlDoc, "text/xml");
+        } else if (type === 'string') {
+            //return the finished html doc as an xml doc compatible string
+            return htmlDoc;
         }
     };
 
