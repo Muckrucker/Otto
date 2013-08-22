@@ -164,39 +164,6 @@ namespace Otto
                     newElement.SetAttributeValue("type", type);
                     //check to see if we've encountered this element before so we can modify the name and lookup
                     newElement = GetUniqueElement(newElement);
-                    //string newElementjQuery = newElement.Attribute("jQuery").Value;
-                    
-                    ////check for a duplicate jQuery lookup or element name so we can make it more unique
-                    //if (_knownItems.ContainsValue(newElementjQuery))
-                    //{
-                    //    //find the total count of items that contain the jquery we're interested in.  
-                    //    //     and thanks to count being 0-based, it'll return the index++ of the object we want from the DOM
-                    //    //this will give us the index of the item when we try to determine a more accurate jQuery lookup statement for it
-                    //    string jQueryIndex = (_knownItems.Where(i => i.Value.Contains(newElementjQuery)).Count()).ToString();
-                    //    // lookup the parent
-                    //    XElement parent = GetJqueryParent(newElementjQuery, jQueryIndex);
-                    //    // parse the parent into it's usable jQuery lookup
-                    //    parent = ParseJQuery(parent);
-                    //    // combine the parent and element jquery lookups together
-                    //    newElementjQuery = String.Format("{0} > {1}", parent.Attribute("jQuery").Value, newElementjQuery);
-                    //    // combine the parent and element names
-                    //    newElement.Name = parent.Name.LocalName + "_" + newElement.Name.LocalName;
-                    //}
-                    ////check for a duplicate name so we can make it more unique
-                    //// this is a rare situation where multiple elements generated the same name with different jQuery lookups
-                    //if (_knownItems.ContainsKey(newElement.Name.LocalName))
-                    //{
-                    //    //find the total count of items that match the key we're interested in.  
-                    //    //     and thanks to count being 0-based, it'll return the new index to use for the name
-                    //    //this will give us the index of the item when we try to determine a more accurate jQuery lookup statement for it
-                    //    string index = (_knownItems.Where(i => i.Key.Contains(newElement.Name.LocalName)).Count()).ToString();
-                    //    // combine the parent and element names
-                    //    newElement.Name = newElement.Name.LocalName + "_" + index;
-                    //}
-                    //_knownItems.Add(newElement.Name.LocalName, newElementjQuery);
-
-                    ////after we've sorted the uniqueness of the jquery lookup, wrap it up with selector syntax
-                    //newElement.SetAttributeValue("jQuery", WrapJquery(newElementjQuery));
                     //and then add it to the final list of elements
                     updatedElements.Add(newElement);
                 }
