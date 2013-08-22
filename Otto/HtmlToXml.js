@@ -262,6 +262,14 @@ HtmlAsXml = function () {
         }
     };
 
+    //takes a jquery selector and returns the xml-correct string for it
+    //  jquery selector should be a complete jquery selector including $() and any .properties needed to be accessed
+    var _jquerySelectorToXmlString = function (jquery) {
+        //convert the jquery object into it's DOM object so we can parse it accurately
+        var domElement = jquery.get(0);
+        return _recurseElementFix(domElement);
+    };
+
     //public members
     return {
         //converts the html of the current page into an xml document
@@ -271,6 +279,11 @@ HtmlAsXml = function () {
         //converts the html of the current page into an xml document compatible string
         toXmlString: function () {
             return _fixFormatting("string");
+        },
+        //returns the xml string equivalent of a specific jquery selector
+        //  jquery selector should be a complete jquery selector including $() and any .properties needed to be accessed
+        elementToXmlString: function (jquery) {
+            return _jquerySelectorToXmlString(jquery);
         }
     };
 }();

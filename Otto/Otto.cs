@@ -21,6 +21,7 @@ namespace Otto
     {
         private IWebDriver _driver;
         private XDocument _xDoc;
+        Dictionary<string, string> _knownItems = new Dictionary<string, string>();
 
         public enum ElementTypes
         {
@@ -92,6 +93,14 @@ namespace Otto
         }
 
         /// <summary>
+        /// Disposes of the browser object and shuts down the chromedriver process
+        /// </summary>
+        public void Cleanup()
+        {
+            _driver.Quit();
+        }
+
+        /// <summary>
         /// Rips through the xmldoc and returns elements based on our selection criteria
         /// </summary>
         /// <returns>A filtered collection of XElements that we want to parse</returns>
@@ -147,21 +156,48 @@ namespace Otto
         private List<XElement> ParseElements(IEnumerable<XElement> elements, ElementTypes type)
         {
             List<XElement> updatedElements = new List<XElement>();
-            Hashtable knownItems = new Hashtable();
             foreach (XElement element in elements)
             {
                 XElement newElement = ParseJQuery(element);
                 if (newElement != null)
                 {
                     newElement.SetAttributeValue("type", type);
-                    //check to see if we've encountered this element before so we can modify the name
-                    Guid randomID = Guid.NewGuid();
-                    if (knownItems.ContainsValue(newElement.Name.LocalName))
-                    {
-                        newElement.Name = newElement.Name.LocalName + "_DUPLICATE_" + randomID.ToString().Replace("-", "_");
-                    }
-                    knownItems.Add(randomID, newElement.Name.LocalName);
+                    //check to see if we've encountered this element before so we can modify the name and lookup
+                    newElement = GetUniqueElement(newElement);
+                    //string newElementjQuery = newElement.Attribute("jQuery").Value;
+                    
+                    ////check for a duplicate jQuery lookup or element name so we can make it more unique
+                    //if (_knownItems.ContainsValue(newElementjQuery))
+                    //{
+                    //    //find the total count of items that contain the jquery we're interested in.  
+                    //    //     and thanks to count being 0-based, it'll return the index++ of the object we want from the DOM
+                    //    //this will give us the index of the item when we try to determine a more accurate jQuery lookup statement for it
+                    //    string jQueryIndex = (_knownItems.Where(i => i.Value.Contains(newElementjQuery)).Count()).ToString();
+                    //    // lookup the parent
+                    //    XElement parent = GetJqueryParent(newElementjQuery, jQueryIndex);
+                    //    // parse the parent into it's usable jQuery lookup
+                    //    parent = ParseJQuery(parent);
+                    //    // combine the parent and element jquery lookups together
+                    //    newElementjQuery = String.Format("{0} > {1}", parent.Attribute("jQuery").Value, newElementjQuery);
+                    //    // combine the parent and element names
+                    //    newElement.Name = parent.Name.LocalName + "_" + newElement.Name.LocalName;
+                    //}
+                    ////check for a duplicate name so we can make it more unique
+                    //// this is a rare situation where multiple elements generated the same name with different jQuery lookups
+                    //if (_knownItems.ContainsKey(newElement.Name.LocalName))
+                    //{
+                    //    //find the total count of items that match the key we're interested in.  
+                    //    //     and thanks to count being 0-based, it'll return the new index to use for the name
+                    //    //this will give us the index of the item when we try to determine a more accurate jQuery lookup statement for it
+                    //    string index = (_knownItems.Where(i => i.Key.Contains(newElement.Name.LocalName)).Count()).ToString();
+                    //    // combine the parent and element names
+                    //    newElement.Name = newElement.Name.LocalName + "_" + index;
+                    //}
+                    //_knownItems.Add(newElement.Name.LocalName, newElementjQuery);
 
+                    ////after we've sorted the uniqueness of the jquery lookup, wrap it up with selector syntax
+                    //newElement.SetAttributeValue("jQuery", WrapJquery(newElementjQuery));
+                    //and then add it to the final list of elements
                     updatedElements.Add(newElement);
                 }
                 else
@@ -170,6 +206,56 @@ namespace Otto
                 }
             }
             return updatedElements;
+        }
+
+        /// <summary>
+        /// A function that will keep iterating on the original element until both its final jQuery and name are unique
+        /// </summary>
+        /// <param name="element">The element to recurse</param>
+        /// <returns></returns>
+        private XElement GetUniqueElement(XElement newElement)
+        {
+            int parents = 0;
+            //check to see if we've encountered this element before so we can modify the name and lookup
+            string newElementjQuery = newElement.Attribute("jQuery").Value;
+
+            //check for a duplicate jQuery lookup or element name so we can make it more unique
+            while (_knownItems.ContainsValue(newElementjQuery) || _knownItems.ContainsKey(newElement.Name.LocalName))
+            {
+                int jQueryIndex = -1;
+                //check for a unique jQuery first as its the most important attribute
+                if (_knownItems.ContainsValue(newElementjQuery))
+                {
+                    //find the total count of items that contain the jquery we're interested in.  
+                    //     and thanks to count being 0-based, it'll return the index++ of the object we want from the DOM
+                    //this will give us the index of the item when we try to determine a more accurate jQuery lookup statement for it
+                    jQueryIndex = _knownItems.Where(i => i.Value.Contains(newElementjQuery)).Count();
+                }
+                else // check for a unique name only once we have a unique jQuery selector
+                {
+                    //find the total count of items that contain the jquery we're interested in.  
+                    //     and take one away as we aren't interested in changing the jQuery lookup a new element
+                    //this will give us the index of the item when we try to determine a more accurate name for it
+                    jQueryIndex = (_knownItems.Where(i => i.Value.Contains(newElementjQuery)).Count() - 1);
+                    jQueryIndex = jQueryIndex < 0 ? 0 : jQueryIndex;
+                }
+                // lookup the parent
+                parents++;
+                XElement parent = GetJqueryParent(newElementjQuery, jQueryIndex, parents);
+                // parse the parent into it's usable jQuery lookup
+                parent = ParseJQuery(parent);
+                // combine the parent and element jquery lookups together
+                newElementjQuery = String.Format("{0} > {1}", parent.Attribute("jQuery").Value, newElementjQuery);
+                // combine the parent and element names
+                newElement.Name = parent.Name.LocalName + "_" + newElement.Name.LocalName;
+            }
+            //we finally have a unique name so add it to our knownitems dictionary
+            _knownItems.Add(newElement.Name.LocalName, newElementjQuery);
+
+            //after we've sorted the uniqueness of the jquery lookup, wrap it up with selector syntax
+            newElement.SetAttributeValue("jQuery", WrapJquery(newElementjQuery));
+
+            return newElement;
         }
 
         /// <summary>
@@ -182,11 +268,13 @@ namespace Otto
             Dictionary<string, string> parsed = new Dictionary<string, string>();
             foreach (XAttribute attr in element.Attributes())
             {
-                //remove all troublesome attributes
+                //remove all troublesome attributes until we can find a safe way to wrap them
                 if (!attr.Name.LocalName.Contains("mouse") &&
                     !attr.Name.LocalName.Contains("trigger") &&
                     !attr.Name.LocalName.Contains("click") &&
-                    !attr.Name.LocalName.Contains("src"))
+                    !attr.Name.LocalName.Contains("src") &&
+                    !attr.Name.LocalName.Contains("style") &&
+                    !attr.Name.LocalName.Contains("data-"))
                 {
                     parsed.Add(attr.Name.LocalName, TryGetElementAttribute(element, attr.Name.LocalName));
                 }
@@ -195,7 +283,7 @@ namespace Otto
         }
 
         /// <summary>
-        /// Parses the element into its usable jQuery selector components
+        /// Parses the element into its usable jQuery selector components and return the updated XElement
         /// </summary>
         /// <param name="element">The element to parse</param>
         /// <returns>A new XElement with an educated guess for 'name' used as the node and
@@ -215,24 +303,28 @@ namespace Otto
 
             if (element.Element("innerText") != null)
             {
-                text = element.Element("innerText").Value;
+                text = (string)element.Element("innerText").Value;
                 field = text;
             }
             else if (element.Descendants("innerText").Count() > 0)
             {
-                text = element.Descendants("innerText").First().Value;
+                //there should be a rare case when something has multiple innerText elements present
+                // so we'll grab the first one to avoid issues
+                text = (string)element.Descendants("innerText").First().Value;
                 field = text;
             } // try the value, name, id, class, and finally leave it generic, should be a rarity
             else if (elementAttributes.ContainsKey("value"))
-                field = elementAttributes["value"];
+                field = (string)elementAttributes["value"];
             else if (elementAttributes.ContainsKey("title"))
-                field = elementAttributes["title"];
+                field = (string)elementAttributes["title"];
             else if (elementAttributes.ContainsKey("id"))
-                field = elementAttributes["id"];
-            else if (elementAttributes.ContainsKey("classValue"))
-                field = elementAttributes["classValue"];
+                field = (string)elementAttributes["id"];
+            else if (elementAttributes.ContainsKey("class"))
+                field = (string)elementAttributes["class"];
             else if (elementAttributes.ContainsKey("name"))
-                field = elementAttributes["name"];
+                field = (string)elementAttributes["name"];
+            else if (elementAttributes.ContainsKey("rel"))
+                field = (string)elementAttributes["rel"];
             else
                 field = tag;
 
@@ -244,6 +336,11 @@ namespace Otto
             //create the updated element proper
             try
             {
+                //currently we roll with the selector as-is if it matched an element on the page
+                // further logic will be needed to recursively separate similar elements
+                // notes: since the elements are checked in document order and added to the dictionary of elements
+                // we can use that index when refering to the elements in javascript/jquery lookup to deduce the correct
+                // parents/siblings to use to uniquely identify the element
                 if (GetJquerySize(WrapJquery(selector)) >= 1)
                 {
                     updatedElement = new XElement(ScrubField(field, tag));
@@ -259,7 +356,8 @@ namespace Otto
                 updatedElement = new XElement(tag);
             }
 
-            updatedElement.SetAttributeValue("jQuery", WrapJquery(selector));
+            // leave the jQuery selector raw for the time being, we'll wrap it above after doing a uniqueness check
+            updatedElement.SetAttributeValue("jQuery", selector);
 
             return updatedElement;
         }
@@ -343,13 +441,14 @@ namespace Otto
                 selector.Append(string.Format("[{0}='{1}']", key, attributes[key]));
             }
             if (!string.IsNullOrEmpty(textValue))
-                selector.Append(string.Format(":contains('{0}')", textValue.Trim()));
+                selector.Append(string.Format(":contains('{0}')", HttpUtility.HtmlDecode(textValue).Trim()));
 
             return selector.ToString();
         }
 
         /// <summary>
-        /// Replaces all illegal characters from the field value with _
+        /// Replaces all illegal characters from the field value with _ as field is used to help create the xelement name and later on the keyword name 
+        ///      and can contain no illegal characters
         /// </summary>
         /// <param name="field">The field value to scrub</param>
         /// <param name="tag">The tag value of the element being scrubbed</param>
@@ -414,13 +513,21 @@ namespace Otto
         /// Returns the parent of the jQuery selector cleaned of childnodes
         /// </summary>
         /// <param name="jquery">The jQuery selector to look up the parent for</param>
+        /// <param name="index">The index of the item to return the parent for</param>
+        /// <param name="depth">The number of .parent() elements to look-up to</param>
         /// <returns></returns>
-        private XElement GetJqueryParent(string jquery)
+        private XElement GetJqueryParent(string jquery, int index, int depth)
         {
             try
             {
                 IJavaScriptExecutor js = (IJavaScriptExecutor)_driver;
-                Object elem = js.ExecuteScript("return " + WrapJquery(jquery) + ".parent().clone().empty();");
+                StringBuilder script = new StringBuilder(String.Format("return HtmlAsXml.elementToXmlString($({0}[{1}])", WrapJquery(jquery), index.ToString()));
+                for (int i = 0; i < depth; i++)
+                {
+                    script.Append(".parent()");
+                }
+                script.Append(".clone().empty());");
+                Object elem = js.ExecuteScript(script.ToString());
                 return XElement.Parse((string)(elem.ToString()));
             }
             catch (Exception e)

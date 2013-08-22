@@ -66,7 +66,7 @@ namespace Otto.ClassBuilder
             generatedString.AppendLine(String.Format("/// Sets the text on the '{0}' field", name));
             generatedString.AppendLine("/// <param name=\"value\">The value to set in the field</param>)");
             generatedString.AppendLine("/// </summary>");
-            generatedString.AppendLine(String.Format("public void Set_{0}(ByVal value As String)", name));
+            generatedString.AppendLine(String.Format("public void Set_{0}(string value)", name));
             generatedString.AppendLine("{");
             generatedString.AppendLine("     //human-readable jquery");
             generatedString.AppendLine(String.Format("     //AutoBase.SetField(\"{0}\", value, FieldType.Text);", HttpUtility.HtmlDecode(jQuery)));
@@ -78,7 +78,7 @@ namespace Otto.ClassBuilder
             generatedString.AppendLine(String.Format("/// Verifies the text on the '{0}' field", name));
             generatedString.AppendLine("/// <param name=\"value\">The value to verify on the field</param>)");
             generatedString.AppendLine("/// </summary>");
-            generatedString.AppendLine(String.Format("public void Verify_{0}(ByVal value As String)", name));
+            generatedString.AppendLine(String.Format("public void Verify_{0}(string value)", name));
             generatedString.AppendLine("{");
             generatedString.AppendLine("     //human-readable jquery");
             generatedString.AppendLine(String.Format("     //AutoBase.VerifyField(\"{0}\", value, FieldType.Text);", HttpUtility.HtmlDecode(jQuery)));
@@ -101,7 +101,7 @@ namespace Otto.ClassBuilder
             generatedString.AppendLine(String.Format("/// Sets the text on the '{0}' field", name));
             generatedString.AppendLine("/// <param name=\"value\">The value to set in the field</param>)");
             generatedString.AppendLine("/// </summary>");
-            generatedString.AppendLine(String.Format("public void Set_{0}(ByVal value As String)", name));
+            generatedString.AppendLine(String.Format("public void Set_{0}(string value)", name));
             generatedString.AppendLine("{");
             generatedString.AppendLine("     //human-readable jquery");
             generatedString.AppendLine(String.Format("     //AutoBase.SetField(\"{0}\", value, FieldType.Select);", HttpUtility.HtmlDecode(jQuery)));
@@ -113,7 +113,7 @@ namespace Otto.ClassBuilder
             generatedString.AppendLine(String.Format("/// Verifies the text on the '{0}' field", name));
             generatedString.AppendLine("/// <param name=\"value\">The value to verify on the field</param>)");
             generatedString.AppendLine("/// </summary>");
-            generatedString.AppendLine(String.Format("public void Verify_{0}(ByVal value As String)", name));
+            generatedString.AppendLine(String.Format("public void Verify_{0}(string value)", name));
             generatedString.AppendLine("{");
             generatedString.AppendLine("     //human-readable jquery");
             generatedString.AppendLine(String.Format("     //AutoBase.VerifyField(\"{0}\", value, FieldType.Select);", HttpUtility.HtmlDecode(jQuery)));

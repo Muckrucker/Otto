@@ -74,7 +74,7 @@ namespace Otto.Properties {
         /// * 
         /// * By Eli Grey, http://eligrey.com 
         /// * Public domain. 
-        /// * NO WARRANTY EXPRESSED OR [rest of string was truncated]&quot;;.
+        /// * NO WARRANTY [rest of string was truncated]&quot;;.
         /// </summary>
         internal static string HtmlToXml {
             get {
