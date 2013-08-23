@@ -159,70 +159,99 @@ namespace Otto
             foreach (XElement element in elements)
             {
                 XElement newElement = ParseJQuery(element);
-                if (newElement != null)
-                {
-                    newElement.SetAttributeValue("type", type);
-                    //check to see if we've encountered this element before so we can modify the name and lookup
-                    newElement = GetUniqueElement(newElement);
-                    //and then add it to the final list of elements
-                    updatedElements.Add(newElement);
-                }
-                else
-                {
-                    //something may have gone wrong?
-                }
+                newElement.SetAttributeValue("type", type);
+                //check to see if we've encountered this element before so we can modify the name and lookup
+                newElement = GetUniqueElement(newElement);
+                //and then add it to the final list of elements
+                updatedElements.Add(newElement);
             }
             return updatedElements;
         }
 
         /// <summary>
-        /// A function that will keep iterating on the original element until both its final jQuery and name are unique
+        /// A function that will help ensure we generate unique elements for our keywords
         /// </summary>
-        /// <param name="element">The element to recurse</param>
+        /// <param name="element">The element to clean up</param>
         /// <returns></returns>
-        private XElement GetUniqueElement(XElement newElement)
+        private XElement GetUniqueElement(XElement element)
         {
-            int parents = 0;
-            //check to see if we've encountered this element before so we can modify the name and lookup
-            string newElementjQuery = newElement.Attribute("jQuery").Value;
+            //go do the heavy lifting to ensure element uniqueness
+            element = RecurseUniqueElement(element);
 
-            //check for a duplicate jQuery lookup or element name so we can make it more unique
-            while (_knownItems.ContainsValue(newElementjQuery) || _knownItems.ContainsKey(newElement.Name.LocalName))
-            {
-                int jQueryIndex = -1;
-                //check for a unique jQuery first as its the most important attribute
-                if (_knownItems.ContainsValue(newElementjQuery))
-                {
-                    //find the total count of items that contain the jquery we're interested in.  
-                    //     and thanks to count being 0-based, it'll return the index++ of the object we want from the DOM
-                    //this will give us the index of the item when we try to determine a more accurate jQuery lookup statement for it
-                    jQueryIndex = _knownItems.Where(i => i.Value.Contains(newElementjQuery)).Count();
-                }
-                else // check for a unique name only once we have a unique jQuery selector
-                {
-                    //find the total count of items that contain the jquery we're interested in.  
-                    //     and take one away as we aren't interested in changing the jQuery lookup a new element
-                    //this will give us the index of the item when we try to determine a more accurate name for it
-                    jQueryIndex = (_knownItems.Where(i => i.Value.Contains(newElementjQuery)).Count() - 1);
-                    jQueryIndex = jQueryIndex < 0 ? 0 : jQueryIndex;
-                }
-                // lookup the parent
-                parents++;
-                XElement parent = GetJqueryParent(newElementjQuery, jQueryIndex, parents);
-                // parse the parent into it's usable jQuery lookup
-                parent = ParseJQuery(parent);
-                // combine the parent and element jquery lookups together
-                newElementjQuery = String.Format("{0} > {1}", parent.Attribute("jQuery").Value, newElementjQuery);
-                // combine the parent and element names
-                newElement.Name = parent.Name.LocalName + "_" + newElement.Name.LocalName;
-            }
-            //we finally have a unique name so add it to our knownitems dictionary
-            _knownItems.Add(newElement.Name.LocalName, newElementjQuery);
+            //we finally have a unique element so add it to our knownitems dictionary
+            _knownItems.Add(element.Name.LocalName, element.Attribute("jQuery").Value);
 
             //after we've sorted the uniqueness of the jquery lookup, wrap it up with selector syntax
-            newElement.SetAttributeValue("jQuery", WrapJquery(newElementjQuery));
+            element.SetAttributeValue("jQuery", WrapJquery(element.Attribute("jQuery").Value));
 
-            return newElement;
+            return element;
+        }
+
+        /// <summary>
+        /// A function that will keep iterating on the original element until both its final jQuery and name are unique
+        /// </summary>
+        /// <param name="element">The element to recurse with</param>
+        /// <returns></returns>
+        private XElement RecurseUniqueElement(XElement element)
+        {
+            int parentsCount = 0;
+            //check to see if we've encountered this element before so we can modify the name and lookup
+            string newElementjQuery = element.Attribute("jQuery").Value;
+
+            //check for a duplicate jQuery lookup so we can make it unique
+            while (_knownItems.ContainsValue(newElementjQuery))
+            {
+                XElement parent = null;
+                parentsCount++;
+
+                //find the total count of items that match the jquery we're interested in.  
+                int elementCount = _knownItems.Where(i => i.Value.Equals(newElementjQuery)).Count();
+
+                //lookup the parent of the other element(s) that matches the new element's jQuery
+                if (elementCount == 1) //simplest and should be the only case...
+                {
+                    //***fix the existing element first
+                    //grab the key associated with the matching jQuery
+                    string key = (from item in _knownItems
+                                  where item.Value.Equals(newElementjQuery)
+                                  select item.Key).First();
+                    // lookup the existing element's parent
+                    parent = GetJqueryParent(newElementjQuery, 0, parentsCount);
+                    // parse the parent into it's usable jQuery lookup
+                    parent = ParseJQuery(parent);
+                    // combine the parent and element jquery lookups together
+                    _knownItems[key] = String.Format("{0} > {1}", parent.Attribute("jQuery").Value, newElementjQuery);
+
+                    //***fix the new element second
+                    // lookup the new element's parent
+                    parent = GetJqueryParent(newElementjQuery, 1, parentsCount);
+                    // parse the parent into it's usable jQuery lookup
+                    parent = ParseJQuery(parent);
+                    // combine the parent and element jquery lookups together
+                    newElementjQuery = String.Format("{0} > {1}", parent.Attribute("jQuery").Value, newElementjQuery);
+                    // combine the parent and element names
+                    element.Name = parent.Name.LocalName + "_" + element.Name.LocalName;
+                }
+                else if (elementCount > 1) //more complicated and should hopefully not become an issue
+                {
+                    string foo = string.Empty;
+                    //for (int i = 0; i <= _knownItems.Where(item => item.Value.Equals(newElementjQuery)).Count(); i++)
+                    //{
+                    //    //XElement fixElement = _knownItem
+                    //}
+                }
+            }
+            //set the jQuery attribute
+            element.SetAttributeValue("jQuery", newElementjQuery);
+
+            // check for a unique name only once we have a unique jQuery selector
+            if (_knownItems.ContainsKey(element.Name.LocalName))
+            {
+                // append whatever count the element is a copy of to the end of the name
+                element.Name = element.Name.LocalName + "_" + _knownItems.Where(i => i.Key.StartsWith(element.Name.LocalName)).Count();
+            }
+
+            return element;
         }
 
         /// <summary>
@@ -320,7 +349,7 @@ namespace Otto
             catch (Exception e)
             {
                 //these cases should become exceedingly rare as the project evolves
-                updatedElement = new XElement(tag);
+                updatedElement = new XElement(tag + "_UNABLE_TO_PARSE_SIZE_OF_JQUERY");
             }
 
             // leave the jQuery selector raw for the time being, we'll wrap it above after doing a uniqueness check
@@ -530,6 +559,10 @@ namespace Otto
         /// <returns></returns>
         private string WrapJquery(string jquery)
         {
+            if (jquery.StartsWith("$"))
+            {
+                return jquery;
+            }
             return "$(\"" + jquery + "\")";
         }
 
