@@ -1,37 +1,34 @@
 <!DOCTYPE html>
 <html>
-
   <head>
-    <meta charset='utf-8' />
-    <meta http-equiv="X-UA-Compatible" content="chrome=1" />
-    <meta name="description" content="Otto : Self-discovering keyword automation bot." />
+    <meta charset='utf-8'>
+    <meta http-equiv="X-UA-Compatible" content="chrome=1">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+    <link href='https://fonts.googleapis.com/css?family=Architects+Daughter' rel='stylesheet' type='text/css'>
+    <link rel="stylesheet" type="text/css" href="stylesheets/stylesheet.css" media="screen" />
+    <link rel="stylesheet" type="text/css" href="stylesheets/pygment_trac.css" media="screen" />
+    <link rel="stylesheet" type="text/css" href="stylesheets/print.css" media="print" />
 
-    <link rel="stylesheet" type="text/css" media="screen" href="stylesheets/stylesheet.css">
+    <!--[if lt IE 9]>
+    <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
 
-    <title>Otto</title>
+    <title>Otto by Muckrucker</title>
   </head>
 
   <body>
+    <header>
+      <div class="inner">
+        <h1>Otto</h1>
+        <h2>Self-discovering keyword automation bot.</h2>
+        <a href="https://github.com/Muckrucker/Otto" class="button"><small>View project on</small>GitHub</a>
+      </div>
+    </header>
 
-    <!-- HEADER -->
-    <div id="header_wrap" class="outer">
-        <header class="inner">
-          <a id="forkme_banner" href="https://github.com/Muckrucker/Otto">View on GitHub</a>
-
-          <h1 id="project_title">Otto</h1>
-          <h2 id="project_tagline">Self-discovering keyword automation bot.</h2>
-
-            <section id="downloads">
-              <a class="zip_download_link" href="https://github.com/Muckrucker/Otto/zipball/master">Download this project as a .zip file</a>
-              <a class="tar_download_link" href="https://github.com/Muckrucker/Otto/tarball/master">Download this project as a tar.gz file</a>
-            </section>
-        </header>
-    </div>
-
-    <!-- MAIN CONTENT -->
-    <div id="main_content_wrap" class="outer">
-      <section id="main_content" class="inner">
-        <h3>
+    <div id="content-wrapper">
+      <div class="inner clearfix">
+        <section id="main-content">
+          <h3>
 <a name="the-names-bot-otto-bot" class="anchor" href="#the-names-bot-otto-bot"><span class="octicon octicon-link"></span></a>The name's Bot, Otto Bot.</h3>
 
 <p>Otto started as a simple precept: What if there was a way to leverage automation tools to generate the keyword classes we use for automation?  A number of my peers agreed and the original project was a top-7 finalist at my company's last hackathon!  Furthermore, a truly kind soul gave me the go-ahead to open-source the project so I could continue to work on it outside of work (thanks again!).</p>
@@ -39,42 +36,48 @@
 <h3>
 <a name="so-what-does-it-do" class="anchor" href="#so-what-does-it-do"><span class="octicon octicon-link"></span></a>So what does it do?</h3>
 
-<p>Simply put, Otto is being designed take nearly any webpage and parse its elements into keyword-class methods for access.  Text boxes get both a Set/Validate, click-based elements get a Click command, etc.  The idea is to remove as much of the manual work as possible that currently goes into generating keyword classes to be used later to write automated tests.</p>
+<p>Simply put, Otto is being designed to take any webpage and parse its elements into keyword-class methods for access.  Text boxes get both a Set/Verify, click-based elements get a Click command, etc.  The idea is to remove as much of the manual work as possible that currently goes into generating keyword classes to be used later to write automated tests.</p>
 
 <h3>
 <a name="how-does-it-work" class="anchor" href="#how-does-it-work"><span class="octicon octicon-link"></span></a>How does it work?</h3>
 
-<p>Otto is a combination of a couple helper js files, jQuery, and a C# back-end that all communicate via Selenium.  In its current state, the js files rip the DOM into an xml-valid string and pass it down to the C# back-end.  Here the string is parsed into an XDocument where it's processed and cut-down to only the relevant elements we want to automate.  These elements are then ripped into validated jQuery statements and added into a dictionary.  The dictionary of final elements is constantly deduped to ensure no two jQuery statements access the element nor will they have the same keyword named.  Finally, this collection gets sent through a simple parser and can output both C# and VB.NET keyword classes.</p>
+<p>Otto is a combination of a couple helper js files, jQuery, and a C# back-end that all communicate via Selenium.  In its current state, the js files rip the DOM into an xml-valid string and pass it down to the C# back-end.  Here the string is parsed into an XDocument where it's processed and cut-down to only the relevant elements we want to automate.  These elements are then ripped into validated jQuery statements and added into a dictionary.  The dictionary of final elements is constantly deduped to ensure unique jQuery lookups per element nor will they have the same keyword named.  Finally, this collection gets sent through a simple parser and can output both C# and VB.NET keyword classes.</p>
 
 <h3>
 <a name="future-work" class="anchor" href="#future-work"><span class="octicon octicon-link"></span></a>Future work</h3>
 
 <ul>
 <li>
-<em>Better element discovery</em>.  It could always be faster, stronger, and more intelligent.  There is still a bit of work left to be done for iFrames (may they burn properly in hell) in particular.</li>
+<em>Better element discovery</em>.  It could always be faster, stronger, and more intelligent.  In particular, there is still a bit of work left to be done for iFrames (may they burn in hell).</li>
 <li>
 <em>User-designated filter lists for elements to keep/identify</em>.  Are your Click-based elements always an anchor tag?  Are they only anchor tags and em tags?  Or are they just input tags with type='submit'?  Allowing the users to tell Otto what elements to watch for would be exceptionally helpful.</li>
 <li>
 <em>User-designated regex filters</em>.  These would be applied against attributes to make them more correct and usable for multiple client installs. For example: some websites use auto-generated information in front an id attribute so you'd see id='auto_gen_1234_firstname'.  I want to support regex filters per attribute type so Otto could turn that id into just 'firstname' and the automation could be run against a variety of installs for QA testing.</li>
 <li>
-<em>Crawling</em>.  Once Otto's discovery engine is strong enough, I would love to extend the tool to then take the data it just discovered and crawl the site.  Auto-generated automation making auto-generated automation.<br>
-</li>
+<em>Crawling</em>.  Once Otto's discovery engine is strong enough, I would love to extend the tool to then take the data it just discovered and crawl the site.  Auto-generated automation making auto-generated automation.  I, for one, welcome our new automation overlord!</li>
 </ul><h3>
 <a name="authors-and-contributors" class="anchor" href="#authors-and-contributors"><span class="octicon octicon-link"></span></a>Authors and Contributors</h3>
 
 <p>Currently Otto is just the pet project of Stephen McCusker (<a href="https://github.com/Muckrucker" class="user-mention">@Muckrucker</a>).  I'm always open for feedback, comments (good and/or bad), and anyone else who's interested.  Thanks!</p>
-      </section>
+        </section>
+
+        <aside id="sidebar">
+          <a href="https://github.com/Muckrucker/Otto/zipball/master" class="button">
+            <small>Download</small>
+            .zip file
+          </a>
+          <a href="https://github.com/Muckrucker/Otto/tarball/master" class="button">
+            <small>Download</small>
+            .tar.gz file
+          </a>
+
+          <p class="repo-owner"><a href="https://github.com/Muckrucker/Otto"></a> is maintained by <a href="https://github.com/Muckrucker">Muckrucker</a>.</p>
+
+          <p>This page was generated by <a href="pages.github.com">GitHub Pages</a> using the Architect theme by <a href="https://twitter.com/jasonlong">Jason Long</a>.</p>
+        </aside>
+      </div>
     </div>
 
-    <!-- FOOTER  -->
-    <div id="footer_wrap" class="outer">
-      <footer class="inner">
-        <p class="copyright">Otto maintained by <a href="https://github.com/Muckrucker">Muckrucker</a></p>
-        <p>Published with <a href="http://pages.github.com">GitHub Pages</a></p>
-      </footer>
-    </div>
-
-    
-
+  
   </body>
 </html>
