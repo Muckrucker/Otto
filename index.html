@@ -41,7 +41,7 @@
 <h3>
 <a name="how-does-it-work" class="anchor" href="#how-does-it-work"><span class="octicon octicon-link"></span></a>How does it work?</h3>
 
-<p>Otto is a combination of a couple helper js files, jQuery, and a C# back-end that all communicate via Selenium.  In its current state, the js files rip the DOM into an xml-valid string and pass it down to the C# back-end.  Here the string is parsed into an XDocument where it's processed and cut-down to only the relevant elements we want to automate.  These elements are then ripped into validated jQuery statements and added into a dictionary.  The dictionary of final elements is constantly deduped to ensure unique jQuery lookups per element nor will they have the same keyword named.  Finally, this collection gets sent through a simple parser and can output both C# and VB.NET keyword classes.</p>
+<p>Otto is a combination of a couple helper js files, jQuery, and a C# back-end that all communicate via Selenium.  In its current state, the js files rip the DOM into an xml-valid string and pass it down to the C# back-end.  Here the string is parsed into an XDocument where it's processed and cut-down to only the relevant elements we want to automate.  These elements are then ripped into validated jQuery statements and added into a dictionary.  The dictionary of final elements is constantly deduped to ensure unique jQuery lookups per element and unique names for the keywords.  Finally, this collection gets sent through a simple parser and can output both C# and VB.NET keyword classes.</p>
 
 <h3>
 <a name="future-work" class="anchor" href="#future-work"><span class="octicon octicon-link"></span></a>Future work</h3>
