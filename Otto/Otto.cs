@@ -20,7 +20,19 @@ namespace Otto
     public class Otto
     {
         private IWebDriver _driver;
-        private XDocument _xDoc;
+
+        /// <summary>
+        /// The property that contains all of the items used to generate the class file.
+        /// *******
+        /// Each entry follows the format of: (Tuple(element.name,localname, jquerylookup), XElement)
+        /// *******
+        /// The tuple is a binary key based on both the localname (which is used to name the class methods) and the
+        /// jquery selector for the element (which is used to access the element in the browser).  Both of these fields
+        /// go through a uniqueness filter to try and guarantee there will not be duplicates.
+        /// *******
+        /// The XElement is the raw element used during class generation and follows the format of:
+        /// unique_element_name_localname jQuery="unique jQuery selector for this element" type="ElementTypes.type"
+        /// </summary>
         Dictionary<Tuple<string, string>, XElement> _itemDict = new Dictionary<Tuple<string, string>, XElement>();
 
         public enum ElementTypes
@@ -66,23 +78,24 @@ namespace Otto
             {
                 throw new NullReferenceException("The Driver instance is null.  Please use Initialize first");
             }
+            XDocument xDoc = new XDocument();
 
             //inject the htmlasxml script and fetch the returned xml-compatible string
             IJavaScriptExecutor js = (IJavaScriptExecutor)_driver;
             js.ExecuteScript(Properties.Resources.HtmlToXml);
             //give the script a second to load
             System.Threading.Thread.Sleep(1000);
-            _xDoc = XDocument.Parse((string)js.ExecuteScript("return HtmlAsXml.toXmlString();"));
+            xDoc = XDocument.Parse((string)js.ExecuteScript("return HtmlAsXml.toXmlString();"));
 
             //return a filtered list of elements to process with their respective type
-            Dictionary<IEnumerable<XElement>, ElementTypes> filteredElements = FilterUsableElements();
+            Dictionary<IEnumerable<XElement>, ElementTypes> filteredElements = FilterUsableElements(xDoc);
 
             //parse the elements into usable info
-            XDocument finalXDoc = new XDocument();
-            finalXDoc.AddFirst(new XElement("root"));
-            finalXDoc.Root.SetAttributeValue("class", className);
+            xDoc = new XDocument();
+            xDoc.AddFirst(new XElement("root"));
+            xDoc.Root.SetAttributeValue("class", className);
             //finalXDoc.Root.SetAttributeValue("template", "NOT YET IMPLEMENTED");
-            finalXDoc.Root.SetAttributeValue("template", "");
+            xDoc.Root.SetAttributeValue("template", "");
             foreach (KeyValuePair<IEnumerable<XElement>, ElementTypes> entry in filteredElements)
             {
                 ParseElements(entry.Key, entry.Value);
@@ -92,11 +105,11 @@ namespace Otto
             {
                 XElement element = kvp.Value;
                 element.SetAttributeValue("jQuery", WrapJquery(element.Attribute("jQuery").Value));
-                finalXDoc.Root.Add(element);
+                xDoc.Root.Add(element);
             }
 
             //create the class file
-            CreateClass(finalXDoc, language);
+            CreateClass(xDoc, language);
         }
 
         /// <summary>
@@ -110,33 +123,34 @@ namespace Otto
         /// <summary>
         /// Rips through the xmldoc and returns elements based on our selection criteria
         /// </summary>
+        /// <param name="elementDoc">The XDocument of elements to parse through</param>
         /// <returns>A filtered collection of XElements that we want to parse</returns>
-        private Dictionary<IEnumerable<XElement>, ElementTypes> FilterUsableElements()
+        private Dictionary<IEnumerable<XElement>, ElementTypes> FilterUsableElements(XDocument elementDoc)
         {
             Dictionary<IEnumerable<XElement>, ElementTypes> filteredElements = new Dictionary<IEnumerable<XElement>, ElementTypes>();
             IEnumerable<XElement> currentElements;
 
             //type-based elements
             //grab input boxes
-            currentElements = (from node in _xDoc.Descendants("input")
+            currentElements = (from node in elementDoc.Descendants("input")
                                where (node.Attribute("type") != null &&
                                     (node.Attribute("type").Value.Equals("text", StringComparison.OrdinalIgnoreCase) ||
                                     node.Attribute("type").Value.Equals("password", StringComparison.OrdinalIgnoreCase)))
                                select node);
             //grab textareas
-            currentElements = currentElements.Union(from node in _xDoc.Descendants("textarea") select node);
+            currentElements = currentElements.Union(from node in elementDoc.Descendants("textarea") select node);
             filteredElements.Add(currentElements, ElementTypes.Type);
 
             //click-based elements
             //grab anchor elements
-            currentElements = (from node in _xDoc.Descendants("a") select node);
+            currentElements = (from node in elementDoc.Descendants("a") select node);
             //grab button elements
-            currentElements = currentElements.Union(from node in _xDoc.Descendants("button")
+            currentElements = currentElements.Union(from node in elementDoc.Descendants("button")
                                                     where (node.Attribute("type") != null &&
                                                          (node.Attribute("type").Value.Equals("submit", StringComparison.OrdinalIgnoreCase)))
                                                     select node);
             //grab checkbox elements
-            currentElements = currentElements.Union(from node in _xDoc.Descendants("input")
+            currentElements = currentElements.Union(from node in elementDoc.Descendants("input")
                                                     where (node.Attribute("type") != null &&
                                                     (node.Attribute("type").Value.Equals("checkbox", StringComparison.OrdinalIgnoreCase) ||
                                                     node.Attribute("type").Value.Equals("submit", StringComparison.OrdinalIgnoreCase) ||
@@ -147,9 +161,9 @@ namespace Otto
 
             //dropdown-based elements
             //grab select elements
-            currentElements = (from node in _xDoc.Descendants("select") select node);
+            currentElements = (from node in elementDoc.Descendants("select") select node);
             //grab unordered list elements
-            currentElements = currentElements.Union(from node in _xDoc.Descendants("select") select node);
+            currentElements = currentElements.Union(from node in elementDoc.Descendants("select") select node);
             filteredElements.Add(currentElements, ElementTypes.Select);
             return filteredElements;
         }
@@ -159,10 +173,10 @@ namespace Otto
         /// </summary>
         /// <param name="elements">Collection of elements to parse</param>
         /// <param name="type">The ElementsTypes of the elements to parse.</param>
-        /// <returns>A list of XElements that will be used to generate the class mappings.</returns>
-        private List<XElement> ParseElements(IEnumerable<XElement> elements, ElementTypes type)
+        /// <remarks>Takes the raw elements, determines unique names and jQuery lookups for them, 
+        /// and ultimately adds the items to _itemDict.</remarks>
+        private void ParseElements(IEnumerable<XElement> elements, ElementTypes type)
         {
-            List<XElement> updatedElements = new List<XElement>();
             foreach (XElement element in elements.Where(e => e != null))
             {
                 try
@@ -171,22 +185,16 @@ namespace Otto
                     newElement.SetAttributeValue("type", type);
                     //check to see if we've encountered this element before so we can modify the name and lookup
                     newElement = GetUniqueElement(newElement);
-                    //and then add it to the final list of elements
-                    updatedElements.Add(newElement);
                 }
                 catch
                 {
                     //trying to figure out why this works correctly just by running it a second time
-
                     XElement newElement = ParseJQuery(element);
                     newElement.SetAttributeValue("type", type);
                     //check to see if we've encountered this element before so we can modify the name and lookup
                     newElement = GetUniqueElement(newElement);
-                    //and then add it to the final list of elements
-                    updatedElements.Add(newElement);
                 }
             }
-            return updatedElements;
         }
 
         /// <summary>
