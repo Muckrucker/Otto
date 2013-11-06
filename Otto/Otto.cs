@@ -21,7 +21,7 @@ namespace Otto
     {
         private IWebDriver _driver;
         private XDocument _xDoc;
-        Dictionary<string, string> _knownItems = new Dictionary<string, string>();
+        Dictionary<Tuple<string, string>, XElement> _itemDict = new Dictionary<Tuple<string, string>, XElement>();
 
         public enum ElementTypes
         {
@@ -85,7 +85,14 @@ namespace Otto
             finalXDoc.Root.SetAttributeValue("template", "");
             foreach (KeyValuePair<IEnumerable<XElement>, ElementTypes> entry in filteredElements)
             {
-                finalXDoc.Root.Add(ParseElements(entry.Key, entry.Value).ToArray());
+                ParseElements(entry.Key, entry.Value);
+            }
+            //iterate on our final collection of items and wrap the jQuery selector for printing
+            foreach (KeyValuePair<Tuple<string, string>, XElement> kvp in _itemDict)
+            {
+                XElement element = kvp.Value;
+                element.SetAttributeValue("jQuery", WrapJquery(element.Attribute("jQuery").Value));
+                finalXDoc.Root.Add(element);
             }
 
             //create the class file
@@ -156,14 +163,28 @@ namespace Otto
         private List<XElement> ParseElements(IEnumerable<XElement> elements, ElementTypes type)
         {
             List<XElement> updatedElements = new List<XElement>();
-            foreach (XElement element in elements)
+            foreach (XElement element in elements.Where(e => e != null))
             {
-                XElement newElement = ParseJQuery(element);
-                newElement.SetAttributeValue("type", type);
-                //check to see if we've encountered this element before so we can modify the name and lookup
-                newElement = GetUniqueElement(newElement);
-                //and then add it to the final list of elements
-                updatedElements.Add(newElement);
+                try
+                {
+                    XElement newElement = ParseJQuery(element);
+                    newElement.SetAttributeValue("type", type);
+                    //check to see if we've encountered this element before so we can modify the name and lookup
+                    newElement = GetUniqueElement(newElement);
+                    //and then add it to the final list of elements
+                    updatedElements.Add(newElement);
+                }
+                catch
+                {
+                    //trying to figure out why this works correctly just by running it a second time
+
+                    XElement newElement = ParseJQuery(element);
+                    newElement.SetAttributeValue("type", type);
+                    //check to see if we've encountered this element before so we can modify the name and lookup
+                    newElement = GetUniqueElement(newElement);
+                    //and then add it to the final list of elements
+                    updatedElements.Add(newElement);
+                }
             }
             return updatedElements;
         }
@@ -178,11 +199,8 @@ namespace Otto
             //go do the heavy lifting to ensure element uniqueness
             element = RecurseUniqueElement(element);
 
-            //we finally have a unique element so add it to our knownitems dictionary
-            _knownItems.Add(element.Name.LocalName, element.Attribute("jQuery").Value);
-
-            //after we've sorted the uniqueness of the jquery lookup, wrap it up with selector syntax
-            element.SetAttributeValue("jQuery", WrapJquery(element.Attribute("jQuery").Value));
+            //we finally have a unique element so add it to our items dictionary
+            _itemDict.Add(new Tuple<string, string>(element.Name.LocalName, element.Attribute("jQuery").Value), element);
 
             return element;
         }
@@ -199,28 +217,32 @@ namespace Otto
             string newElementjQuery = element.Attribute("jQuery").Value;
 
             //check for a duplicate jQuery lookup so we can make it unique
-            while (_knownItems.ContainsValue(newElementjQuery))
+            while (_itemDict.ContainsKey(new Tuple<string, string>(element.Name.LocalName, newElementjQuery)))
             {
                 XElement parent = null;
                 parentsCount++;
 
                 //find the total count of items that match the jquery we're interested in.  
-                int elementCount = _knownItems.Where(i => i.Value.Equals(newElementjQuery)).Count();
+                int elementCount = _itemDict.Where(i => i.Key.Item2.Equals(newElementjQuery)).Count();
 
                 //lookup the parent of the other element(s) that matches the new element's jQuery
                 if (elementCount == 1) //simplest and should be the only case...
                 {
                     //***fix the existing element first
-                    //grab the key associated with the matching jQuery
-                    string key = (from item in _knownItems
-                                  where item.Value.Equals(newElementjQuery)
-                                  select item.Key).First();
+                    //create the key associated with the matching jQuery
+                    Tuple<string,string> key = new Tuple<string,string>(element.Name.LocalName, newElementjQuery);
+
                     // lookup the existing element's parent
                     parent = GetJqueryParent(newElementjQuery, 0, parentsCount);
                     // parse the parent into it's usable jQuery lookup
                     parent = ParseJQuery(parent);
+                    // remove the existing element as it will now have a new key for its element
+                    XElement oldElement = _itemDict[key];
+                    _itemDict.Remove(key);
                     // combine the parent and element jquery lookups together
-                    _knownItems[key] = String.Format("{0} > {1}", parent.Attribute("jQuery").Value, newElementjQuery);
+                    key = new Tuple<string, string>(key.Item1, String.Format("{0} > {1}", parent.Attribute("jQuery").Value, newElementjQuery));
+                    oldElement.Attribute("jQuery").Value = key.Item2;
+                    _itemDict.Add(key, oldElement);
 
                     //***fix the new element second
                     // lookup the new element's parent
@@ -235,7 +257,7 @@ namespace Otto
                 else if (elementCount > 1) //more complicated and should hopefully not become an issue
                 {
                     string foo = string.Empty;
-                    //for (int i = 0; i <= _knownItems.Where(item => item.Value.Equals(newElementjQuery)).Count(); i++)
+                    //for (int i = 0; i <= _itemDict.Where(i => i.Key.Item2.Equals(newElementjQuery)).Count(); i++)
                     //{
                     //    //XElement fixElement = _knownItem
                     //}
@@ -245,10 +267,10 @@ namespace Otto
             element.SetAttributeValue("jQuery", newElementjQuery);
 
             // check for a unique name only once we have a unique jQuery selector
-            if (_knownItems.ContainsKey(element.Name.LocalName))
+            if (_itemDict.Where(i => i.Key.Item1.Equals(element.Name.LocalName)).Count() > 0)
             {
                 // append whatever count the element is a copy of to the end of the name
-                element.Name = element.Name.LocalName + "_" + _knownItems.Where(i => i.Key.StartsWith(element.Name.LocalName)).Count();
+                element.Name = element.Name.LocalName + "_" + _itemDict.Where(i => i.Key.Item1.StartsWith(element.Name.LocalName)).Count();
             }
 
             return element;
