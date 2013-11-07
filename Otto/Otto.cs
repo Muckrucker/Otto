@@ -179,21 +179,10 @@ namespace Otto
         {
             foreach (XElement element in elements.Where(e => e != null))
             {
-                try
-                {
-                    XElement newElement = ParseJQuery(element);
-                    newElement.SetAttributeValue("type", type);
-                    //check to see if we've encountered this element before so we can modify the name and lookup
-                    newElement = GetUniqueElement(newElement);
-                }
-                catch
-                {
-                    //trying to figure out why this works correctly just by running it a second time
-                    XElement newElement = ParseJQuery(element);
-                    newElement.SetAttributeValue("type", type);
-                    //check to see if we've encountered this element before so we can modify the name and lookup
-                    newElement = GetUniqueElement(newElement);
-                }
+                XElement newElement = ParseJQuery(element);
+                newElement.SetAttributeValue("type", type);
+                //check to see if we've encountered this element before so we can modify the name and lookup
+                newElement = GetUniqueElement(newElement);
             }
         }
 
@@ -204,8 +193,11 @@ namespace Otto
         /// <returns></returns>
         private XElement GetUniqueElement(XElement element)
         {
-            //go do the heavy lifting to ensure element uniqueness
-            element = RecurseUniqueElement(element);
+            if (_itemDict.ContainsKey(new Tuple<string, string>(element.Name.LocalName, element.Attribute("jQuery").Value)))
+            {
+                //go do the heavy lifting to ensure element uniqueness
+                element = RecurseUniqueElement(element);
+            }
 
             //we finally have a unique element so add it to our items dictionary
             _itemDict.Add(new Tuple<string, string>(element.Name.LocalName, element.Attribute("jQuery").Value), element);
@@ -229,47 +221,52 @@ namespace Otto
             {
                 XElement parent = null;
                 parentsCount++;
+                // create the key associated with the matching name/jQuery
+                Tuple<string, string> key = new Tuple<string, string>(element.Name.LocalName, newElementjQuery);
+                // grab the current element that matches this key
+                XElement oldElement = _itemDict[key];
 
-                //find the total count of items that match the jquery we're interested in.  
-                int elementCount = _itemDict.Where(i => i.Key.Item2.Equals(newElementjQuery)).Count();
-
-                //lookup the parent of the other element(s) that matches the new element's jQuery
-                if (elementCount == 1) //simplest and should be the only case...
+                //***fix the existing element first
+                // lookup the existing element's parent
+                parent = GetJqueryParent(newElementjQuery, 0, parentsCount);
+                if (parent == null)
                 {
-                    //***fix the existing element first
-                    //create the key associated with the matching jQuery
-                    Tuple<string,string> key = new Tuple<string,string>(element.Name.LocalName, newElementjQuery);
+                    break;
+                }
+                // parse the parent into it's usable jQuery lookup
+                parent = ParseJQuery(parent);
+                // remove the existing element as it will now have a new key for its element
+                _itemDict.Remove(key);
+                // combine the parent and element names and jquery together to create a new key
+                key = new Tuple<string, string>(parent.Name.LocalName + "_" + oldElement.Name.LocalName, String.Format("{0} > {1}", parent.Attribute("jQuery").Value, newElementjQuery));
+                oldElement.Name = key.Item1;
+                oldElement.Attribute("jQuery").Value = key.Item2;
 
-                    // lookup the existing element's parent
-                    parent = GetJqueryParent(newElementjQuery, 0, parentsCount);
-                    // parse the parent into it's usable jQuery lookup
-                    parent = ParseJQuery(parent);
-                    // remove the existing element as it will now have a new key for its element
-                    XElement oldElement = _itemDict[key];
-                    _itemDict.Remove(key);
-                    // combine the parent and element jquery lookups together
-                    key = new Tuple<string, string>(key.Item1, String.Format("{0} > {1}", parent.Attribute("jQuery").Value, newElementjQuery));
-                    oldElement.Attribute("jQuery").Value = key.Item2;
+                // ensure that our "new" old element is not going to cause issues
+                if (_itemDict.ContainsKey(key))
+                {
+                    // this should be a very rare case
+                    oldElement = RecurseUniqueElement(oldElement);
+                }
+                else
+                {
                     _itemDict.Add(key, oldElement);
+                }
 
-                    //***fix the new element second
-                    // lookup the new element's parent
-                    parent = GetJqueryParent(newElementjQuery, 1, parentsCount);
-                    // parse the parent into it's usable jQuery lookup
-                    parent = ParseJQuery(parent);
-                    // combine the parent and element jquery lookups together
-                    newElementjQuery = String.Format("{0} > {1}", parent.Attribute("jQuery").Value, newElementjQuery);
-                    // combine the parent and element names
-                    element.Name = parent.Name.LocalName + "_" + element.Name.LocalName;
-                }
-                else if (elementCount > 1) //more complicated and should hopefully not become an issue
+
+                //***fix the new element second
+                // lookup the new element's parent
+                parent = GetJqueryParent(newElementjQuery, 1, parentsCount);
+                if (parent == null)
                 {
-                    string foo = string.Empty;
-                    //for (int i = 0; i <= _itemDict.Where(i => i.Key.Item2.Equals(newElementjQuery)).Count(); i++)
-                    //{
-                    //    //XElement fixElement = _knownItem
-                    //}
+                    break;
                 }
+                // parse the parent into it's usable jQuery lookup
+                parent = ParseJQuery(parent);
+                // combine the parent and element names
+                element.Name = parent.Name.LocalName + "_" + element.Name.LocalName;
+                // combine the parent and element jquery lookups together
+                newElementjQuery = String.Format("{0} > {1}", parent.Attribute("jQuery").Value, newElementjQuery);
             }
             //set the jQuery attribute
             element.SetAttributeValue("jQuery", newElementjQuery);
@@ -279,6 +276,12 @@ namespace Otto
             {
                 // append whatever count the element is a copy of to the end of the name
                 element.Name = element.Name.LocalName + "_" + _itemDict.Where(i => i.Key.Item1.StartsWith(element.Name.LocalName)).Count();
+            }
+
+            // sanity check for uniqueness
+            if (_itemDict.ContainsKey(new Tuple<string, string>(element.Name.LocalName, element.Attribute("jQuery").Value)))
+            {
+                element = RecurseUniqueElement(element);
             }
 
             return element;
@@ -302,7 +305,12 @@ namespace Otto
                     !attr.Name.LocalName.Contains("style") &&
                     !attr.Name.LocalName.Contains("data-"))
                 {
-                    parsed.Add(attr.Name.LocalName, TryGetElementAttribute(element, attr.Name.LocalName));
+                    string value = TryGetElementAttribute(element, attr.Name.LocalName);
+                    if (!string.IsNullOrEmpty(value))
+                    {
+                        parsed.Add(attr.Name.LocalName, value);
+                    }
+
                 }
             }
             return parsed;
@@ -329,12 +337,14 @@ namespace Otto
 
             if (element.Element("innerText") != null)
             {
+                //this will be an innerText element attached to the base element
                 text = (string)element.Element("innerText").Value;
                 field = text;
             }
             else if (element.Descendants("innerText").Count() > 0)
             {
                 //there should be a rare case when something has multiple innerText elements present
+                // that are not on the element itself and are instead on one of its descendants
                 // so we'll grab the first one to avoid issues
                 text = (string)element.Descendants("innerText").First().Value;
                 field = text;
@@ -373,6 +383,8 @@ namespace Otto
                 }
                 else //we've discovered a broken jquery selector
                 {
+                    //There needs to be more work done around handling this scenario correctly
+                    // for now we note that there were 0_JQUERY_MATCHES in the element's name and move on
                     updatedElement = new XElement(ScrubField(string.Concat("0_JQUERY_MATCHES_", field), tag));
                 }
             }
@@ -449,12 +461,8 @@ namespace Otto
         /// Creates a jQuery selector based on the supplied input
         /// </summary>
         /// <param name="tag">The html tagname of the element</param>
-        /// <param name="id">The id attribute of the element</param>
-        /// <param name="type">The type attribute of the element</param>
-        /// <param name="textValue">The text present on/inside the element</param>
-        /// <param name="title">The title attribute of the element</param>
-        /// <param name="classValue">The class attribute of the element</param>
-        /// <param name="style">The style attribute of the element</param>
+        /// <param name="attributes">A Dictionary of (name, value) pairs containing all the prescrubbed attributes for the element</param>
+        /// <param name="textValue">The textvalue present on the element, handled separately due to .val and .text incongruencies</param>
         /// <returns></returns>
         private string BuildGenericJQuerySelector(string tag,
             Dictionary<string, string> attributes,
