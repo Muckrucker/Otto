@@ -220,39 +220,40 @@ namespace Otto
             while (_itemDict.ContainsKey(new Tuple<string, string>(element.Name.LocalName, newElementjQuery)))
             {
                 XElement parent = null;
+                XElement oldElement = null;
                 parentsCount++;
                 // create the key associated with the matching name/jQuery
                 Tuple<string, string> key = new Tuple<string, string>(element.Name.LocalName, newElementjQuery);
-                // grab the current element that matches this key
-                XElement oldElement = _itemDict[key];
-
-                //***fix the existing element first
-                // lookup the existing element's parent
-                parent = GetJqueryParent(newElementjQuery, 0, parentsCount);
-                if (parent == null)
+                // if the key matches exactly, grab the old element
+                if (_itemDict.TryGetValue(key, out oldElement))
                 {
-                    break;
-                }
-                // parse the parent into it's usable jQuery lookup
-                parent = ParseJQuery(parent);
-                // remove the existing element as it will now have a new key for its element
-                _itemDict.Remove(key);
-                // combine the parent and element names and jquery together to create a new key
-                key = new Tuple<string, string>(parent.Name.LocalName + "_" + oldElement.Name.LocalName, String.Format("{0} > {1}", parent.Attribute("jQuery").Value, newElementjQuery));
-                oldElement.Name = key.Item1;
-                oldElement.Attribute("jQuery").Value = key.Item2;
+                    //***fix the existing element first
+                    // lookup the existing element's parent
+                    parent = GetJqueryParent(newElementjQuery, 0, parentsCount);
+                    if (parent == null)
+                    {
+                        break;
+                    }
+                    // parse the parent into it's usable jQuery lookup
+                    parent = ParseJQuery(parent);
+                    // remove the existing element as it will now have a new key for its element
+                    _itemDict.Remove(key);
+                    // combine the parent and element names and jquery together to create a new key
+                    key = new Tuple<string, string>(parent.Name.LocalName + "_" + oldElement.Name.LocalName, String.Format("{0} > {1}", parent.Attribute("jQuery").Value, newElementjQuery));
+                    oldElement.Name = key.Item1;
+                    oldElement.Attribute("jQuery").Value = key.Item2;
 
-                // ensure that our "new" old element is not going to cause issues
-                if (_itemDict.ContainsKey(key))
-                {
-                    // this should be a very rare case
-                    oldElement = RecurseUniqueElement(oldElement);
+                    // ensure that our "new" old element is not going to cause issues
+                    if (_itemDict.ContainsKey(key))
+                    {
+                        // this should be a very rare case
+                        oldElement = RecurseUniqueElement(oldElement);
+                    }
+                    else
+                    {
+                        _itemDict.Add(key, oldElement);
+                    }
                 }
-                else
-                {
-                    _itemDict.Add(key, oldElement);
-                }
-
 
                 //***fix the new element second
                 // lookup the new element's parent
